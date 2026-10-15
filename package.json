@@ -1,0 +1,16 @@
+{
+  "name": "expo-gof-cafeteria",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Patrones GoF (Prototype, Singleton, Adapter) en un sistema de pedidos para una cafetería",
+  "scripts": {
+    "prototype:sin": "node Prototype/sin-prototype.js",
+    "prototype:con": "node Prototype/con-prototype.js",
+    "singleton:sin": "node Singleton/sin-singleton.js",
+    "singleton:con": "node Singleton/con-singleton.js",
+    "adapter:sin": "node Adapter/sin-adapter.js",
+    "adapter:con": "node Adapter/con-adapter.js",
+    "ejemplos": "node Prototype/sin-prototype.js && node Prototype/con-prototype.js && node Singleton/sin-singleton.js && node Singleton/con-singleton.js && node Adapter/sin-adapter.js && node Adapter/con-adapter.js",
+    "demo": "node Backend/main.js"
+  }
+}

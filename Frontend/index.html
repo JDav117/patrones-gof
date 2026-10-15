@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cafetería GoF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+  <style>
+    /* Layout: una pestaña por patrón. Cada pestaña tiene UNA demostración grande
+       y termina en una barra de "Resultado" que dice en una frase qué se probó.
+       Colores de la presentación: azul = Prototype, verde = Singleton, naranja = Adapter. */
+    :root {
+      --fondo: #f2f6f9;
+      --superficie: #ffffff;
+      --ticket: #fffdf6;
+      --tinta: #11324a;
+      --tenue: #5a7184;
+      --linea: #d4e0e9;
+      --banda: #14496b;
+      --sobre-banda: #ffffff;
+
+      --azul: #1a6690;
+      --verde: #4e8a22;
+      --naranja: #f2a01e;
+      --sobre-azul: #ffffff;
+      --sobre-verde: #ffffff;
+      --sobre-naranja: #241806;
+
+      --ok: #2e7a2f;
+      --ok-fondo: #e6f2e1;
+      --error: #bb3a2f;
+      --error-fondo: #fbe8e6;
+      --sombra: rgba(17, 50, 74, .14);
+
+      --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+      --texto: "Figtree", "Segoe UI", system-ui, sans-serif;
+      --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+
+      --radio: 14px;
+      --gutter: clamp(16px, 3vw, 40px);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --fondo: #0b1822; --superficie: #122636; --ticket: #172f43; --tinta: #e1ebf2;
+        --tenue: #93a9ba; --linea: #24405a; --banda: #0e2e44; --sobre-banda: #eaf2f8;
+        --azul: #63b0dc; --verde: #8ccb5c; --naranja: #f5b445;
+        --sobre-azul: #06202f; --sobre-verde: #0d240c; --sobre-naranja: #241806;
+        --ok: #7fd06c; --ok-fondo: #163220; --error: #f08b7f; --error-fondo: #3a1d1b;
+        --sombra: rgba(0, 0, 0, .4);
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --fondo: #0b1822; --superficie: #122636; --ticket: #172f43; --tinta: #e1ebf2;
+      --tenue: #93a9ba; --linea: #24405a; --banda: #0e2e44; --sobre-banda: #eaf2f8;
+      --azul: #63b0dc; --verde: #8ccb5c; --naranja: #f5b445;
+      --sobre-azul: #06202f; --sobre-verde: #0d240c; --sobre-naranja: #241806;
+      --ok: #7fd06c; --ok-fondo: #163220; --error: #f08b7f; --error-fondo: #3a1d1b;
+      --sombra: rgba(0, 0, 0, .4);
+      color-scheme: dark;
+    }
+
+    /* ----- Base -------------------------------------------------- */
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--fondo); color: var(--tinta); font: 17px/1.5 var(--texto); }
+    h1, h2, h3 { font-family: var(--display); line-height: 1.1; margin: 0; text-wrap: balance; }
+    p { margin: 0; }
+    button, input { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid var(--acento, var(--azul)); outline-offset: 2px; }
+    /* Que "===" se vea como tres signos y no como una barra */
+    code, .mono, .ticket, .endpoint, .sello, .lienzo text, .paso code, .igualdad {
+      font-variant-ligatures: none !important;
+      font-feature-settings: "liga" 0, "calt" 0 !important;
+    }
+
+    /* ----- Encabezado -------------------------------------------- */
+    .banda { background: var(--banda); color: var(--sobre-banda); border-bottom: 4px solid var(--naranja); padding: 16px var(--gutter); }
+    .banda-interior { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+    .banda h1 { font-size: clamp(1.4rem, 2.4vw, 1.8rem); font-weight: 800; }
+    .banda p { opacity: .75; font-size: .9rem; }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 24px var(--gutter) 32px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+
+    /* ----- Pestañas ---------------------------------------------- */
+    .pestanas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .pestana {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      background: var(--superficie);
+      border: 2px solid var(--linea);
+      border-radius: var(--radio);
+      cursor: pointer; text-align: left;
+    }
+    .pestana:hover { border-color: var(--c); }
+    .pestana[aria-selected="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--superficie)); }
+    .pestana .punto { width: 14px; height: 14px; border-radius: 50%; background: var(--c); flex: none; }
+    .pestana strong { font: 800 1.2rem/1.1 var(--display); }
+    .pestana small { display: block; color: var(--tenue); font-size: .85rem; }
+    .p-prototype { --c: var(--azul); }
+    .p-singleton { --c: var(--verde); }
+    .p-adapter { --c: var(--naranja); }
+
+    /* ----- Escenario de cada patrón ------------------------------ */
+    .escenario {
+      background: var(--superficie);
+      border: 1px solid var(--linea);
+      border-top: 6px solid var(--acento);
+      border-radius: var(--radio);
+      padding: clamp(18px, 3vw, 32px);
+      display: grid;
+      gap: 24px;
+    }
+    .escenario[data-patron="prototype"] { --acento: var(--azul); --sobre-acento: var(--sobre-azul); }
+    .escenario[data-patron="singleton"] { --acento: var(--verde); --sobre-acento: var(--sobre-verde); }
+    .escenario[data-patron="adapter"] { --acento: var(--naranja); --sobre-acento: var(--sobre-naranja); }
+    .escenario { --acento-suave: color-mix(in srgb, var(--acento) 13%, var(--superficie)); }
+
+    .cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px 24px; }
+    .cabecera h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 800; }
+    .cabecera p { color: var(--tenue); margin-top: 6px; font-size: 1.05rem; }
+    .endpoint { font: 700 .9rem/1 var(--mono); padding: 10px 14px; border-radius: 8px; background: var(--acento-suave); white-space: nowrap; }
+
+    /* Botones */
+    .btn {
+      border: 0; border-radius: 10px; padding: 12px 22px;
+      font-weight: 700; font-size: 1.02rem; cursor: pointer;
+      background: var(--acento); color: var(--sobre-acento);
+      white-space: nowrap;
+    }
+    .btn:hover { filter: brightness(1.07); }
+    .btn:active { transform: translateY(1px); }
+    .btn-borde { background: transparent; color: var(--tinta); border: 1.5px solid var(--linea); }
+    .btn-borde:hover { border-color: var(--acento); filter: none; }
+    .btn-borde[aria-pressed="true"] { border-color: var(--acento); background: var(--acento-suave); }
+    .btn-chico { padding: 7px 12px; font-size: .88rem; border-radius: 8px; }
+    .btn-texto { background: none; border: 0; padding: 0; color: var(--tenue); text-decoration: underline; cursor: pointer; font-size: .9rem; }
+
+    .campo { display: grid; gap: 6px; font-size: .9rem; font-weight: 600; color: var(--tenue); }
+    input[type="text"] { width: 100%; padding: 10px 12px; border: 1.5px solid var(--linea); border-radius: 10px; background: var(--fondo); font-size: 1rem; }
+
+    .segmentado { display: inline-flex; padding: 4px; gap: 4px; background: var(--fondo); border: 1.5px solid var(--linea); border-radius: 12px; }
+    .segmentado input { position: absolute; opacity: 0; pointer-events: none; }
+    .segmentado label { padding: 9px 16px; border-radius: 9px; cursor: pointer; font-weight: 700; color: var(--tenue); }
+    .segmentado input:checked + label { background: var(--acento); color: var(--sobre-acento); }
+    .segmentado input:focus-visible + label { outline: 3px solid var(--acento); outline-offset: 2px; }
+
+    /* Barra de resultado: la conclusión de cada demo */
+    .resultado {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px;
+      border-radius: 12px;
+      background: var(--fondo);
+      border: 1.5px dashed var(--linea);
+      color: var(--tenue);
+      font-size: 1.08rem;
+    }
+    .resultado .icono { font: 800 1.5rem/1 var(--display); flex: none; }
+    .resultado.ok { background: var(--ok-fondo); border: 1.5px solid var(--ok); color: var(--tinta); }
+    .resultado.ok .icono { color: var(--ok); }
+    .resultado.mal { background: var(--error-fondo); border: 1.5px solid var(--error); color: var(--tinta); }
+    .resultado.mal .icono { color: var(--error); }
+    .resultado b { font-weight: 700; }
+
+    /* ----- PROTOTYPE: tickets ------------------------------------ */
+    .mesa { display: grid; grid-template-columns: minmax(250px, 300px) auto minmax(0, 1fr); gap: 20px; align-items: start; }
+    .columna { display: grid; gap: 14px; min-width: 0; }
+    .rotulo { font: 700 .78rem/1 var(--texto); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue); }
+    .flecha-grande { align-self: center; font: 800 2.4rem/1 var(--mono); color: var(--acento); }
+    .copias { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; align-items: start; }
+    .ticket {
+      background: var(--ticket);
+      border: 1.5px solid var(--linea);
+      border-radius: 6px;
+      box-shadow: 0 10px 22px -16px var(--sombra);
+      font: 500 .98rem/1.5 var(--mono);
+    }
+    .ticket.plantilla { border-top: 5px solid var(--acento); }
+    .ticket.nuevo { border-color: var(--acento); animation: imprimir .45s ease-out; }
+    .ticket.cambio { animation: destello .9s ease-out; }
+    .ticket-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 8px; padding: 12px 14px; border-bottom: 1.5px dashed var(--linea); }
+    .ticket-num { font-weight: 700; font-size: 1.1rem; white-space: nowrap; }
+    .ticket-tipo { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); }
+    .ticket.plantilla .ticket-tipo { color: var(--acento); font-weight: 700; }
+    .ticket ul { list-style: none; margin: 0; padding: 10px 14px; display: grid; gap: 2px; }
+    .ticket li { font-variant-numeric: tabular-nums; }
+    .ticket .cant { display: inline-block; min-width: 3ch; color: var(--tenue); }
+    .ticket-nota { padding: 8px 14px 12px; border-top: 1.5px dashed var(--linea); color: var(--tenue); overflow-wrap: anywhere; }
+    .ticket-pie { padding: 0 14px 14px; font-family: var(--texto); }
+    .vacio { border: 2px dashed var(--linea); border-radius: var(--radio); padding: 36px 20px; text-align: center; color: var(--tenue); }
+    @keyframes imprimir { from { opacity: 0; transform: translateY(-14px); clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+    @keyframes destello { from { box-shadow: 0 0 0 5px var(--acento); } }
+
+    /* ----- SINGLETON: diagrama ----------------------------------- */
+    .controles { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+    .lienzo { background: var(--fondo); border: 1px solid var(--linea); border-radius: var(--radio); padding: 10px; }
+    .lienzo svg { display: block; width: 100%; max-width: 760px; height: auto; margin: 0 auto; }
+    .sv-caja rect { fill: var(--superficie); stroke: var(--linea); stroke-width: 2; }
+    .sv-instancia rect { fill: var(--acento-suave); stroke: var(--acento); stroke-width: 2.5; }
+    .sv-instancia.sin rect { fill: var(--error-fondo); stroke: var(--error); }
+    .sv-nula rect { fill: none; stroke: var(--tenue); stroke-width: 2; stroke-dasharray: 7 7; }
+    .sv-titulo { font: 700 19px var(--display); fill: var(--tinta); }
+    .sv-sub { font: 500 13px var(--mono); fill: var(--tenue); }
+    .sv-linea { fill: none; stroke: var(--acento); stroke-width: 3; stroke-dasharray: 1; stroke-dashoffset: 0; animation: trazo .6s ease-out; }
+    .sv-linea.sin { stroke: var(--error); }
+    .sv-punta { fill: var(--acento); }
+    .sv-punta.sin { fill: var(--error); }
+    @keyframes trazo { from { stroke-dashoffset: 1; } }
+    .igualdad { font: 700 1.4rem/1.2 var(--mono); }
+
+    /* ----- ADAPTER: recibo + carriles ---------------------------- */
+    .caja { display: grid; grid-template-columns: minmax(250px, 290px) minmax(0, 1fr); gap: 24px; align-items: start; }
+    .recibo {
+      background: var(--ticket); border: 1.5px solid var(--linea); border-radius: 6px;
+      padding: 18px; display: grid; gap: 16px;
+      box-shadow: 0 10px 22px -16px var(--sombra);
+    }
+    .recibo-total { padding-bottom: 14px; border-bottom: 1.5px dashed var(--linea); }
+    .recibo-total small { font: 700 .78rem/1 var(--mono); color: var(--tenue); }
+    .recibo-total b { display: block; margin-top: 4px; font: 800 2.5rem/1.05 var(--display); font-variant-numeric: tabular-nums; }
+    .montos { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fila-pago { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; }
+    .sello {
+      font: 700 .85rem/1 var(--mono); letter-spacing: .1em;
+      padding: 8px 10px; border: 3px double currentColor; border-radius: 6px;
+      transform: rotate(-8deg); animation: sellar .35s cubic-bezier(.2, 1.6, .5, 1);
+    }
+    .sello.APROBADO { color: var(--ok); }
+    .sello.RECHAZADO { color: var(--error); }
+    @keyframes sellar { from { opacity: 0; transform: rotate(-8deg) scale(1.8); } }
+
+    .carriles {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(130px, .65fr) minmax(0, 1fr);
+      grid-template-areas: "h1 h2 h3" "p1 t1 p2" "p4 t2 p3";
+      gap: 12px 0;
+    }
+    .carriles::before {
+      content: ""; grid-column: 2; grid-row: 1 / -1;
+      background: var(--acento-suave); border: 2px dashed var(--acento); border-radius: var(--radio);
+    }
+    .carril { position: relative; padding: 10px 4px 0; text-align: center; font: 700 .78rem/1.2 var(--texto); letter-spacing: .08em; text-transform: uppercase; color: var(--tenue); }
+    .carril.medio { color: var(--tinta); font: 700 .95rem/1.2 var(--mono); letter-spacing: 0; text-transform: none; }
+    .h1 { grid-area: h1; } .h2 { grid-area: h2; } .h3 { grid-area: h3; }
+    .p1 { grid-area: p1; } .p2 { grid-area: p2; } .p3 { grid-area: p3; } .p4 { grid-area: p4; }
+    .t1 { grid-area: t1; } .t2 { grid-area: t2; }
+    .paso {
+      position: relative; min-width: 0;
+      background: var(--superficie); border: 1.5px solid var(--linea); border-radius: 10px;
+      padding: 12px 14px; display: grid; gap: 6px; align-content: start;
+    }
+    .paso span { font: 700 .78rem/1.2 var(--texto); color: var(--tenue); }
+    .paso code { font: 700 .95rem/1.4 var(--mono); color: var(--tenue); overflow-wrap: anywhere; }
+    .paso.lleno code { color: var(--tinta); }
+    .paso.lleno { animation: aparecer .35s ease-out backwards; }
+    .p2.lleno { animation-delay: .12s; } .p3.lleno { animation-delay: .24s; } .p4.lleno { animation-delay: .36s; }
+    .paso.APROBADO { border-color: var(--ok); background: var(--ok-fondo); }
+    .paso.APROBADO code { color: var(--ok); }
+    .paso.RECHAZADO { border-color: var(--error); background: var(--error-fondo); }
+    .paso.RECHAZADO code { color: var(--error); }
+    .traduce { position: relative; align-self: center; text-align: center; font: 600 .85rem/1.3 var(--texto); padding: 0 8px; }
+    .traduce .flecha { display: block; font: 800 1.7rem/1 var(--mono); color: var(--acento); }
+    .traduce .flecha.angosto { display: none; }
+    @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } }
+
+    footer { text-align: center; color: var(--tenue); font: 600 .9rem/1.4 var(--mono); padding: 0 var(--gutter) 28px; }
+
+    /* ----- Responsive -------------------------------------------- */
+    @media (max-width: 900px) {
+      .mesa, .caja { grid-template-columns: minmax(0, 1fr); }
+      .flecha-grande { transform: rotate(90deg); justify-self: center; }
+    }
+    @media (max-width: 700px) {
+      .pestanas { grid-template-columns: minmax(0, 1fr); }
+      .carriles { grid-template-columns: minmax(0, 1fr); grid-template-areas: "p1" "t1" "p2" "p3" "t2" "p4"; }
+      .carriles::before, .carril { display: none; }
+      .traduce { background: var(--acento-suave); border-radius: 8px; padding: 8px; }
+      .traduce .flecha.ancho { display: none; }
+      .traduce .flecha.angosto { display: block; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="banda">
+    <div class="banda-interior">
+      <svg width="44" height="44" viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="12" fill="var(--naranja)"/>
+        <path d="M12 19h20v9a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8z" fill="var(--banda)"/>
+        <path d="M32 21h2.5a4 4 0 0 1 0 8H32" fill="none" stroke="var(--banda)" stroke-width="3"/>
+        <path d="M18 9c-2 3 2 4 0 7M24 9c-2 3 2 4 0 7" fill="none" stroke="var(--banda)" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>Cafetería GoF</h1>
+        <p>Panel de demostración · Pedidos</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <nav class="pestanas" role="tablist" aria-label="Patrones">
+      <button class="pestana p-prototype" role="tab" id="tab-prototype" aria-controls="panel-prototype" aria-selected="true" data-patron="prototype">
+        <span class="punto"></span><span><strong>Prototype</strong><small>Duplicar un pedido</small></span>
+      </button>
+      <button class="pestana p-singleton" role="tab" id="tab-singleton" aria-controls="panel-singleton" aria-selected="false" data-patron="singleton">
+        <span class="punto"></span><span><strong>Singleton</strong><small>Una sola configuración</small></span>
+      </button>
+      <button class="pestana p-adapter" role="tab" id="tab-adapter" aria-controls="panel-adapter" aria-selected="false" data-patron="adapter">
+        <span class="punto"></span><span><strong>Adapter</strong><small>Pagar con una pasarela</small></span>
+      </button>
+    </nav>
+
+    <!-- ===================== PROTOTYPE ===================== -->
+    <section class="escenario" id="panel-prototype" data-patron="prototype" role="tabpanel" aria-labelledby="tab-prototype">
+      <div class="cabecera">
+        <div>
+          <h2>Duplicar pedido</h2>
+          <p>Cada copia es un pedido nuevo. Cambiar la copia no cambia la plantilla.</p>
+        </div>
+        <span class="endpoint">POST /pedidos/:id/duplicar</span>
+      </div>
+
+      <div class="mesa">
+        <div class="columna">
+          <span class="rotulo">Plantilla</span>
+          <div id="plantilla"></div>
+          <label class="campo" for="nota-copia">Nota para la copia
+            <input id="nota-copia" type="text" value="para mesa 4">
+          </label>
+          <button class="btn" id="duplicar">Duplicar pedido</button>
+        </div>
+        <span class="flecha-grande" aria-hidden="true">→</span>
+        <div class="columna">
+          <span class="rotulo">Copias</span>
+          <div id="copias" class="copias"></div>
+        </div>
+      </div>
+
+      <div class="resultado" id="resultado-prototype" aria-live="polite"></div>
+      <div><button class="btn-texto" id="reiniciar">Reiniciar pedidos</button></div>
+    </section>
+
+    <!-- ===================== SINGLETON ===================== -->
+    <section class="escenario" id="panel-singleton" data-patron="singleton" role="tabpanel" aria-labelledby="tab-singleton" hidden>
+      <div class="cabecera">
+        <div>
+          <h2>Una sola configuración</h2>
+          <p>Pedidos y pagos piden la configuración. ¿Reciben el mismo objeto?</p>
+        </div>
+        <span class="endpoint">GET /config</span>
+      </div>
+
+      <div class="controles">
+        <div class="segmentado" role="radiogroup" aria-label="Modo">
+          <input type="radio" name="modo" id="modo-con" value="con" checked><label for="modo-con">Con Singleton</label>
+          <input type="radio" name="modo" id="modo-sin" value="sin"><label for="modo-sin">Sin patrón</label>
+        </div>
+        <button class="btn" id="pedir-config">Pedir configuración</button>
+      </div>
+
+      <div class="lienzo" id="lienzo-singleton"></div>
+
+      <div class="resultado" id="resultado-singleton" aria-live="polite"></div>
+    </section>
+
+    <!-- ===================== ADAPTER ===================== -->
+    <section class="escenario" id="panel-adapter" data-patron="adapter" role="tabpanel" aria-labelledby="tab-adapter" hidden>
+      <div class="cabecera">
+        <div>
+          <h2>Pagar pedido</h2>
+          <p>Nuestra app siempre pide lo mismo. El adapter lo traduce para cada pasarela.</p>
+        </div>
+        <span class="endpoint">POST /pagos</span>
+      </div>
+
+      <div class="caja">
+        <div class="recibo">
+          <div class="recibo-total">
+            <small>TOTAL DEL PEDIDO #014</small>
+            <b>USD $<span id="total-texto">25.00</span></b>
+          </div>
+          <div class="campo">Monto
+            <div class="montos">
+              <button class="btn btn-borde btn-chico" data-monto="25" aria-pressed="true">$25</button>
+              <button class="btn btn-borde btn-chico" data-monto="150" aria-pressed="false">$150 (supera el límite)</button>
+            </div>
+          </div>
+          <div class="campo">Pasarela
+            <div class="segmentado" role="radiogroup" aria-label="Pasarela">
+              <input type="radio" name="proveedor" id="prov-x" value="X" checked><label for="prov-x">Pasarela X</label>
+              <input type="radio" name="proveedor" id="prov-y" value="Y"><label for="prov-y">Pasarela Y</label>
+            </div>
+          </div>
+          <div class="fila-pago">
+            <button class="btn" id="procesar">Procesar pago</button>
+            <span id="lugar-sello"></span>
+          </div>
+        </div>
+
+        <div class="carriles" id="carriles">
+          <div class="carril h1">Núcleo</div>
+          <div class="carril medio h2" id="nombre-adapter">PagoXAdapter</div>
+          <div class="carril h3">Pasarela externa</div>
+
+          <div class="paso p1"><span>1 · Nuestra app envía</span><code id="paso1"></code></div>
+          <div class="traduce t1"><span class="flecha ancho">→</span><span class="flecha angosto">↓</span>traduce</div>
+          <div class="paso p2"><span id="titulo-paso2"></span><code id="paso2"></code></div>
+
+          <div class="paso p4" id="caja-paso4"><span>4 · Nuestra app recibe</span><code id="paso4"></code></div>
+          <div class="traduce t2"><span class="flecha ancho">←</span><span class="flecha angosto">↓</span>traduce</div>
+          <div class="paso p3"><span id="titulo-paso3"></span><code id="paso3"></code></div>
+        </div>
+      </div>
+
+      <div class="resultado" id="resultado-adapter" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer>Frontend → API → caso de uso → dominio / puerto</footer>
+
+  <script>
+    // ================= Utilidades =================
+    const $ = (selector) => document.querySelector(selector);
+
+    function esc(texto) {
+      const div = document.createElement("div");
+      div.textContent = texto;
+      return div.innerHTML;
+    }
+
+    const numero = (id) => "#" + String(id).padStart(3, "0");
+
+    // Llama a la API del backend y devuelve la respuesta en JSON
+    async function api(metodo, ruta, body) {
+      let res;
+      try {
+        res = await fetch(ruta, {
+          method: metodo,
+          headers: { "Content-Type": "application/json" },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      } catch {
+        throw new Error("No hay conexión con el servidor. Ejecuta: npm run demo");
+      }
+      const datos = await res.json();
+      if (!res.ok) throw new Error(datos.error);
+      return datos;
+    }
+
+    // Pinta la barra de resultado: tipo = "ok" | "mal" | "" (neutral)
+    function resultado(id, tipo, html) {
+      const icono = tipo === "ok" ? "✔" : tipo === "mal" ? "✘" : "→";
+      $(id).className = "resultado " + tipo;
+      $(id).innerHTML = `<span class="icono">${icono}</span><span>${html}</span>`;
+    }
+
+    // ================= Pestañas =================
+    const patrones = ["prototype", "singleton", "adapter"];
+
+    function mostrar(patron) {
+      patrones.forEach((p) => {
+        $("#panel-" + p).hidden = p !== patron;
+        $("#tab-" + p).setAttribute("aria-selected", p === patron);
+      });
+      history.replaceState(null, "", "#" + patron);
+    }
+
+    document.querySelectorAll(".pestana").forEach((tab) =>
+      tab.addEventListener("click", () => mostrar(tab.dataset.patron)));
+
+    // Teclas 1, 2 y 3 para cambiar de pestaña
+    document.addEventListener("keydown", (e) => {
+      if (e.target.matches("input") || e.ctrlKey || e.metaKey || e.altKey) return;
+      const patron = patrones[Number(e.key) - 1];
+      if (patron) mostrar(patron);
+    });
+
+    // ================= PROTOTYPE =================
+    const ID_PLANTILLA = 14;
+    let origenDe = {}; // id de la copia → id del pedido del que salió
+
+    // ["Café", "Café", "Sandwich"] → [["Café", 2], ["Sandwich", 1]]
+    function agrupar(productos) {
+      const conteo = {};
+      productos.forEach((p) => (conteo[p] = (conteo[p] || 0) + 1));
+      return Object.entries(conteo);
+    }
+
+    const cafes = (pedido) => pedido.productos.filter((p) => p === "Café").length;
+
+    function ticket(p, efecto) {
+      const esPlantilla = p.id === ID_PLANTILLA;
+      return `
+        <article class="ticket ${esPlantilla ? "plantilla" : ""} ${efecto || ""}">
+          <header class="ticket-cab">
+            <span class="ticket-num">PEDIDO ${numero(p.id)}</span>
+            <span class="ticket-tipo">${esPlantilla ? "Desayuno habitual" : "copia de " + numero(origenDe[p.id] ?? ID_PLANTILLA)}</span>
+          </header>
+          <ul>${agrupar(p.productos).map(([prod, cant]) => `<li><span class="cant">${cant}×</span> ${esc(prod)}</li>`).join("")}</ul>
+          <p class="ticket-nota">Nota: ${esc(p.nota)}</p>
+          <div class="ticket-pie"><button class="btn btn-borde btn-chico" data-cafe="${p.id}">+1 Café</button></div>
+        </article>`;
+    }
+
+    function pintarPedidos(pedidos, efectos = {}) {
+      const plantilla = pedidos.find((p) => p.id === ID_PLANTILLA);
+      const copias = pedidos.filter((p) => p.id !== ID_PLANTILLA).reverse(); // la más nueva primero
+      $("#plantilla").innerHTML = plantilla ? ticket(plantilla, efectos[plantilla.id]) : "";
+      $("#copias").innerHTML = copias.length
+        ? copias.map((p) => ticket(p, efectos[p.id])).join("")
+        : `<div class="vacio">Aquí aparecerán las copias.</div>`;
+    }
+
+    async function duplicar() {
+      try {
+        const r = await api("POST", `/pedidos/${ID_PLANTILLA}/duplicar`, { nota: $("#nota-copia").value.trim() });
+        origenDe[r.copia.id] = r.original.id;
+        pintarPedidos(await api("GET", "/pedidos"), { [r.copia.id]: "nuevo" });
+        const v = r.verificacion;
+        const todoBien = v.idNuevo && v.objetosDistintos && v.productosIndependientes;
+        resultado("#resultado-prototype", todoBien ? "ok" : "mal",
+          `Se creó el pedido <b>${numero(r.copia.id)}</b>: un objeto nuevo con su propia lista de productos. ` +
+          `Prueba <b>+1 Café</b> en la copia: la plantilla no cambia.`);
+      } catch (error) {
+        resultado("#resultado-prototype", "mal", esc(error.message));
+      }
+    }
+
+    async function agregarCafe(id) {
+      try {
+        const pedidos = await api("POST", `/pedidos/${id}/agregar`);
+        pintarPedidos(pedidos, { [id]: "cambio" });
+        const plantilla = pedidos.find((p) => p.id === ID_PLANTILLA);
+        const pedido = pedidos.find((p) => p.id === id);
+        resultado("#resultado-prototype", "ok", id === ID_PLANTILLA
+          ? `La plantilla ahora tiene <b>${cafes(plantilla)} cafés</b>. Las copias que ya existían no cambiaron.`
+          : `El pedido ${numero(id)} ahora tiene <b>${cafes(pedido)} cafés</b> y la plantilla sigue con <b>${cafes(plantilla)}</b>. Son independientes.`);
+      } catch (error) {
+        resultado("#resultado-prototype", "mal", esc(error.message));
+      }
+    }
+
+    function estadoInicialPrototype() {
+      origenDe = {};
+      resultado("#resultado-prototype", "", "Pulsa <b>Duplicar pedido</b> para crear una copia de la plantilla.");
+    }
+
+    $("#duplicar").addEventListener("click", duplicar);
+    document.addEventListener("click", (e) => {
+      const boton = e.target.closest("[data-cafe]");
+      if (boton) agregarCafe(Number(boton.dataset.cafe));
+    });
+    $("#reiniciar").addEventListener("click", async () => {
+      estadoInicialPrototype();
+      pintarPedidos(await api("POST", "/pedidos/reiniciar"));
+    });
+
+    // ================= SINGLETON =================
+    const modoSingleton = () => document.querySelector("input[name=modo]:checked").value;
+
+    // Dibuja los dos servicios y la(s) instancia(s) a la(s) que apuntan
+    function dibujarSingleton(r, modo) {
+      const sin = modo === "sin";
+      const llamada = sin ? "new ConfigApp()" : "getInstance()";
+      const servicio = (y, nombre, variable) => `
+        <g class="sv-caja">
+          <rect x="12" y="${y}" width="220" height="72" rx="10"/>
+          <text class="sv-titulo" x="28" y="${y + 31}">${nombre}</text>
+          <text class="sv-sub" x="28" y="${y + 55}">${variable} = ${llamada}</text>
+        </g>`;
+      const instancia = (y, num) => `
+        <g class="sv-instancia ${sin ? "sin" : ""}">
+          <rect x="420" y="${y}" width="228" height="88" rx="12"/>
+          <text class="sv-titulo" x="440" y="${y + 37}">ConfigApp #${num}</text>
+          <text class="sv-sub" x="440" y="${y + 62}">es · IVA 19% · USD</text>
+        </g>`;
+      const linea = (y1, y2) => `<path class="sv-linea ${sin ? "sin" : ""}" pathLength="1" marker-end="url(#punta-${sin ? "sin" : "con"})" d="M232 ${y1} C 325 ${y1}, 325 ${y2}, 412 ${y2}"/>`;
+
+      let derecha;
+      if (!r) {
+        derecha = `
+          <g class="sv-nula">
+            <rect x="420" y="98" width="228" height="88" rx="12"/>
+            <text class="sv-titulo" x="440" y="135">instancia = null</text>
+            <text class="sv-sub" x="440" y="160">todavía no existe</text>
+          </g>`;
+      } else if (r.mismaReferencia) {
+        derecha = instancia(98, r.numeroA) + linea(72, 142) + linea(212, 142);
+      } else {
+        derecha = instancia(28, r.numeroA) + instancia(168, r.numeroB) + linea(72, 72) + linea(212, 212);
+      }
+
+      $("#lienzo-singleton").innerHTML = `
+        <svg viewBox="0 0 660 284" role="img" aria-label="${!r ? "La instancia todavía no existe" : r.mismaReferencia ? "Los dos servicios apuntan a la misma instancia" : "Cada servicio apunta a una instancia distinta"}">
+          <defs>
+            <marker id="punta-con" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="sv-punta" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="punta-sin" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="sv-punta sin" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          ${servicio(36, "Servicio pedidos", "a")}
+          ${servicio(176, "Servicio pagos", "b")}
+          ${derecha}
+        </svg>`;
+    }
+
+    function cambiarModo() {
+      dibujarSingleton(null, modoSingleton());
+      resultado("#resultado-singleton", "", "Pulsa <b>Pedir configuración</b> varias veces y mira a qué caja llegan las flechas.");
+    }
+
+    async function pedirConfig() {
+      const modo = modoSingleton();
+      try {
+        const r = await api("GET", "/config?modo=" + modo);
+        dibujarSingleton(r, modo);
+        resultado("#resultado-singleton", r.mismaReferencia ? "ok" : "mal",
+          `<span class="igualdad">a === b → ${r.mismaReferencia}</span><br>` +
+          (r.mismaReferencia
+            ? `Los dos servicios recibieron el <b>mismo objeto</b>. Instancias creadas en total: <b>${r.totalInstancias}</b>.`
+            : `Cada servicio recibió un <b>objeto distinto</b>. Instancias creadas en total: <b>${r.totalInstancias}</b> (crece en cada clic).`));
+      } catch (error) {
+        resultado("#resultado-singleton", "mal", esc(error.message));
+      }
+    }
+
+    document.querySelectorAll("input[name=modo]").forEach((radio) => radio.addEventListener("change", cambiarModo));
+    $("#pedir-config").addEventListener("click", pedirConfig);
+
+    // ================= ADAPTER =================
+    // Lo que espera y responde cada pasarela (se muestra antes de pagar)
+    const formatos = {
+      X: { adapter: "PagoXAdapter", recibe: "{ amountCents, currency }", responde: `"succeeded" | "failed"` },
+      Y: { adapter: "PagoYAdapter", recibe: "{ amount }", responde: `"OK" | "DECLINED"` },
+    };
+
+    let monto = 25;
+    const proveedor = () => document.querySelector("input[name=proveedor]:checked").value;
+
+    // Deja los 4 pasos con el formato esperado, sin datos todavía
+    function reiniciarCarriles() {
+      const p = proveedor();
+      const f = formatos[p];
+      $("#nombre-adapter").textContent = f.adapter;
+      $("#titulo-paso2").textContent = `2 · Pasarela ${p} recibe`;
+      $("#titulo-paso3").textContent = `3 · Pasarela ${p} responde`;
+      $("#paso1").textContent = "{ total, moneda }";
+      $("#paso2").textContent = f.recibe;
+      $("#paso3").textContent = f.responde;
+      $("#paso4").textContent = `"APROBADO" | "RECHAZADO"`;
+      document.querySelectorAll("#carriles .paso").forEach((paso) => paso.classList.remove("lleno"));
+      $("#caja-paso4").className = "paso p4";
+      $("#lugar-sello").innerHTML = "";
+      resultado("#resultado-adapter", "", "Pulsa <b>Procesar pago</b> y sigue los pasos 1 → 2 → 3 → 4.");
+    }
+
+    // { total: 25, moneda: "USD" } → texto legible
+    const formatear = (obj) => JSON.stringify(obj).replace(/"(\w+)":/g, "$1: ").replace(/,/g, ", ").replace(/^{/, "{ ").replace(/}$/, " }");
+
+    async function procesarPago() {
+      try {
+        const r = await api("POST", "/pagos", { total: monto, proveedor: proveedor() });
+        reiniciarCarriles();
+        void $("#carriles").offsetWidth; // reinicia las animaciones
+
+        $("#paso1").textContent = formatear(r.enviadoPorNuestraApp);
+        $("#paso2").textContent = formatear(r.recibidoPorPasarela);
+        $("#paso3").textContent = JSON.stringify(r.respuestaDePasarela);
+        $("#paso4").textContent = JSON.stringify(r.respuestaNormalizada);
+        document.querySelectorAll("#carriles .paso").forEach((paso) => paso.classList.add("lleno"));
+        $("#caja-paso4").classList.add(r.respuestaNormalizada);
+        $("#lugar-sello").innerHTML = `<span class="sello ${r.respuestaNormalizada}">${r.respuestaNormalizada}</span>`;
+
+        // La barra queda en verde aunque el pago sea rechazado: el adapter tradujo bien en los dos casos
+        const motivo = r.respuestaNormalizada === "APROBADO" ? "" : " (el monto supera el límite de la pasarela)";
+        resultado("#resultado-adapter", "ok",
+          `La pasarela ${r.proveedor} recibió <b>${esc(formatear(r.recibidoPorPasarela))}</b> y respondió <b>${esc(JSON.stringify(r.respuestaDePasarela))}</b>${motivo}. ` +
+          `El adapter lo tradujo y nuestra app recibió <b>${r.respuestaNormalizada}</b>, en su propio formato.`);
+      } catch (error) {
+        resultado("#resultado-adapter", "mal", esc(error.message));
+      }
+    }
+
+    document.querySelectorAll("[data-monto]").forEach((boton) => boton.addEventListener("click", () => {
+      monto = Number(boton.dataset.monto);
+      $("#total-texto").textContent = monto.toFixed(2);
+      document.querySelectorAll("[data-monto]").forEach((b) => b.setAttribute("aria-pressed", b === boton));
+      reiniciarCarriles();
+    }));
+    document.querySelectorAll("input[name=proveedor]").forEach((radio) => radio.addEventListener("change", reiniciarCarriles));
+    $("#procesar").addEventListener("click", procesarPago);
+
+    // ================= Inicio =================
+    api("GET", "/pedidos")
+      .then((pedidos) => pintarPedidos(pedidos))
+      .catch((error) => resultado("#resultado-prototype", "mal", esc(error.message)));
+    estadoInicialPrototype();
+    cambiarModo();
+    reiniciarCarriles();
+    const inicial = location.hash.slice(1);
+    if (patrones.includes(inicial)) mostrar(inicial);
+  </script>
+</body>
+</html>
